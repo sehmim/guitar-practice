@@ -1,7 +1,3 @@
 {
-  ".gitignore": "337c259b7dd3d3c062dcf03861b197c4fc75a615",
-  ".promptvc/last_git_state_claude.json": "73f18a41adacb6267799c373c4799d40e0e6527e",
-  ".promptvc/last_prompt_count_claude": "d8263ee9860594d2806b0dfd1bfd17528b0ba2a4",
-  ".promptvc/sessions.json": "eb275717d7ae46382f40efc490c4fe48694bcdaf",
-  "src/App.jsx": "5e7e64c7aa73e7cc35a0d1b3c1beb08a2af84491"
+  "src/App.jsx": "7c0f49056e881a5a9e21aeb406fd3ff8b2c093dc"
 }

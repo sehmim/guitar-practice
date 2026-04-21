@@ -1,5 +1,5 @@
 import { useState, useReducer, useRef, useEffect, useCallback } from "react";
-import { Guitar, BookOpen, Mic, MicOff, Play, Pause, Square, SkipForward, Eye, EyeOff, ChevronRight, Star, Trash2, Clock, Target, Flame, Volume2 } from "lucide-react";
+import { Guitar, BookOpen, Music, Mic, MicOff, Play, Pause, Square, SkipForward, Eye, EyeOff, ChevronRight, Star, Trash2, Clock, Target, Flame, Volume2 } from "lucide-react";
 
 // localStorage adapter (replaces storage from Claude artifact environment)
 const storage = {
@@ -63,6 +63,156 @@ function frequencyToNote(freq) {
 function pickRandom(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
 function resolveKey(k) { return k === 'Random' ? pickRandom(NOTES) : k; }
 function resolveScale(s) { return s === 'Random' ? pickRandom(['Major','Minor']) : s; }
+
+// ─── Chord Progressions Library ───────────────────────────────────────────────
+
+const ROMAN = {
+  Major: ['I','ii','iii','IV','V','vi','vii°'],
+  Minor: ['i','ii°','III','iv','v','VI','VII'],
+};
+function degLabel(degree, scaleType) { return ROMAN[scaleType]?.[degree - 1] ?? degree; }
+
+const PROGRESSIONS = {
+  Major: [
+    {
+      genre: 'Pop',
+      items: [
+        { name: 'I–V–vi–IV', degrees: [1,5,6,4], songs: ['Let It Be', 'With or Without You', 'Payphone', 'Don\'t Stop Believin\'', 'Someone Like You (major key)'] },
+        { name: 'I–vi–IV–V', degrees: [1,6,4,5], songs: ['Stand By Me', 'Earth Angel', 'Blue Moon', 'Every Breath You Take'] },
+        { name: 'vi–IV–I–V', degrees: [6,4,1,5], songs: ['Apologize', 'Pompeii', 'Let Her Go', 'Royals'] },
+        { name: 'I–IV–V', degrees: [1,4,5], songs: ['La Bamba', 'Twist and Shout', 'Johnny B. Goode'] },
+        { name: 'I–IV–vi–V', degrees: [1,4,6,5], songs: ['Africa (Toto)', 'Lean On Me', 'Take On Me'] },
+      ],
+    },
+    {
+      genre: 'Rock',
+      items: [
+        { name: 'I–IV–V', degrees: [1,4,5], songs: ['Louie Louie', 'Wild Thing', 'Good Riddance'] },
+        { name: 'I–V–IV', degrees: [1,5,4], songs: ['Free Fallin\'', 'Brown Eyed Girl', 'Knockin\' on Heaven\'s Door'] },
+        { name: 'I–IV–I–V', degrees: [1,4,1,5], songs: ['Rock Around the Clock', 'Johnny B. Goode'] },
+        { name: 'I–V–vi–iii–IV', degrees: [1,5,6,3,4], songs: ['Canon Rock', 'Axis of Awesome songs'] },
+        { name: 'I–iii–IV–V', degrees: [1,3,4,5], songs: ['House of the Rising Sun (intro)', 'Piano Man'] },
+      ],
+    },
+    {
+      genre: 'Blues',
+      items: [
+        { name: '12-Bar Blues (A)', degrees: [1,1,1,1,4,4,1,1], songs: ['Hound Dog', 'Johnny B. Goode', 'Blue Suede Shoes'] },
+        { name: 'Blues Turnaround', degrees: [1,4,1,5], songs: ['Everyday Blues', 'Kansas City'] },
+        { name: 'Quick-Change Blues', degrees: [1,4,1,1,4,4,1,5], songs: ['Quick Change 12-Bar variant'] },
+        { name: 'Blues Shuffle', degrees: [1,4,5,4], songs: ['Pride and Joy', 'Crossroads'] },
+      ],
+    },
+    {
+      genre: 'Jazz',
+      items: [
+        { name: 'ii–V–I', degrees: [2,5,1], songs: ['Autumn Leaves', 'All The Things You Are', 'Misty'] },
+        { name: 'I–vi–ii–V', degrees: [1,6,2,5], songs: ['I Got Rhythm', 'Rhythm Changes', 'Fly Me to the Moon'] },
+        { name: 'iii–VI–ii–V', degrees: [3,6,2,5], songs: ['Autumn Leaves (B section)', 'Lady Bird'] },
+        { name: 'I–IV–iii–vi', degrees: [1,4,3,6], songs: ['Heart and Soul', 'That\'s All'] },
+        { name: 'I–IV–ii–V', degrees: [1,4,2,5], songs: ['Take the A Train (simplified)', 'Satin Doll'] },
+      ],
+    },
+    {
+      genre: 'R&B / Soul',
+      items: [
+        { name: 'I–vi–ii–V', degrees: [1,6,2,5], songs: ['A Change Is Gonna Come', 'My Girl (turnaround)'] },
+        { name: 'I–IV–vi–V', degrees: [1,4,6,5], songs: ['Lean On Me', 'Lovely Day'] },
+        { name: 'I–iii–IV–V', degrees: [1,3,4,5], songs: ['What\'s Going On', 'Mercy Mercy Me'] },
+        { name: 'I–IV–I–V', degrees: [1,4,1,5], songs: ['Soul Finger', 'Mustang Sally'] },
+      ],
+    },
+    {
+      genre: 'Country',
+      items: [
+        { name: 'I–IV–V', degrees: [1,4,5], songs: ['Ring of Fire', 'Folsom Prison Blues', 'Wagon Wheel'] },
+        { name: 'I–V–IV–V', degrees: [1,5,4,5], songs: ['Country Shuffle', 'On the Road Again'] },
+        { name: 'I–IV–V–IV', degrees: [1,4,5,4], songs: ['Take Me Home Country Roads', 'Country Roads'] },
+        { name: 'I–ii–IV–V', degrees: [1,2,4,5], songs: ['Modern Country', 'Thinking Out Loud (country)'] },
+      ],
+    },
+    {
+      genre: 'Folk',
+      items: [
+        { name: 'I–IV–V', degrees: [1,4,5], songs: ['This Land Is Your Land', 'Simple folk tunes'] },
+        { name: 'I–V–vi–iii–IV', degrees: [1,5,6,3,4], songs: ['Pachelbel\'s Canon', 'Canon in D'] },
+        { name: 'I–vi–IV–II', degrees: [1,6,4,2], songs: ['50s doo-wop', 'Teen ballads'] },
+        { name: 'I–V–IV', degrees: [1,5,4], songs: ['The Sound of Silence', 'Mr. Tambourine Man'] },
+      ],
+    },
+    {
+      genre: 'Funk',
+      items: [
+        { name: 'I–IV', degrees: [1,4], songs: ['Superstition', 'Get Up (I Feel Like Being a) Sex Machine'] },
+        { name: 'I–IV–V–IV', degrees: [1,4,5,4], songs: ['Higher Ground', 'Give It Up'] },
+        { name: 'I–ii–IV–I', degrees: [1,2,4,1], songs: ['Funk groove staple'] },
+      ],
+    },
+  ],
+  Minor: [
+    {
+      genre: 'Rock',
+      items: [
+        { name: 'i–VII–VI–VII', degrees: [1,7,6,7], songs: ['Stairway to Heaven', 'Hotel California', 'Smoke on the Water'] },
+        { name: 'i–VI–III–VII', degrees: [1,6,3,7], songs: ['Nothing Else Matters', 'Numb', 'Faded'] },
+        { name: 'i–iv–VII–III', degrees: [1,4,7,3], songs: ['Creep', 'Mad World', 'Lithium'] },
+        { name: 'i–VI–VII', degrees: [1,6,7], songs: ['Losing My Religion', 'Sultans of Swing', 'Zombie'] },
+        { name: 'i–v–VI–VII', degrees: [1,5,6,7], songs: ['Pumped Up Kicks', 'Seven Nation Army'] },
+      ],
+    },
+    {
+      genre: 'Pop',
+      items: [
+        { name: 'i–VI–III–VII', degrees: [1,6,3,7], songs: ['Counting Stars', 'Radioactive', 'Demons'] },
+        { name: 'i–VII–VI–VII', degrees: [1,7,6,7], songs: ['Wicked Game', 'Zombie', 'In the Air Tonight'] },
+        { name: 'i–iv–i–V', degrees: [1,4,1,5], songs: ['Sail', 'Stay (Rihanna)'] },
+        { name: 'i–VI–VII–i', degrees: [1,6,7,1], songs: ['Shape of You (partial)', 'Stitches'] },
+      ],
+    },
+    {
+      genre: 'Blues',
+      items: [
+        { name: 'Minor 12-Bar', degrees: [1,1,1,1,4,4,1,1], songs: ['The Thrill Is Gone', 'Stormy Monday'] },
+        { name: 'i–iv–V', degrees: [1,4,5], songs: ['Minor blues shuffle', 'Spoonful'] },
+        { name: 'i–VII–iv–V', degrees: [1,7,4,5], songs: ['Minor blues turnaround'] },
+      ],
+    },
+    {
+      genre: 'Jazz',
+      items: [
+        { name: 'ii°–V–i', degrees: [2,5,1], songs: ['Autumn Leaves', 'Summertime', 'Solar'] },
+        { name: 'i–iv–VII–III', degrees: [1,4,7,3], songs: ['Minor jazz standard', 'Stolen Moments'] },
+        { name: 'i–VI–III–VII', degrees: [1,6,3,7], songs: ['Minor jazz turnaround', 'Black Orpheus'] },
+        { name: 'i–ii°–V–i', degrees: [1,2,5,1], songs: ['Autumn Leaves cadence', 'Fly Me to the Moon (minor)'] },
+      ],
+    },
+    {
+      genre: 'Metal',
+      items: [
+        { name: 'i–VII–VI–V', degrees: [1,7,6,5], songs: ['Andalusian Cadence', 'Eruption', 'Sultans of Swing solo'] },
+        { name: 'i–VII–VI–VII', degrees: [1,7,6,7], songs: ['Iron Maiden style', 'Hallowed Be Thy Name'] },
+        { name: 'i–iv–VII–VI', degrees: [1,4,7,6], songs: ['Paranoid', 'Iron Man', 'Sabbath-style'] },
+        { name: 'i–VI–III–VII', degrees: [1,6,3,7], songs: ['Fade to Black', 'Master of Puppets'] },
+      ],
+    },
+    {
+      genre: 'R&B / Soul',
+      items: [
+        { name: 'i–VII–VI–VII', degrees: [1,7,6,7], songs: ['Mercy Mercy Me', 'Inner City Blues'] },
+        { name: 'i–iv–VII–i', degrees: [1,4,7,1], songs: ['Neo-soul groove', 'Redbone (partial)'] },
+        { name: 'i–VI–VII', degrees: [1,6,7], songs: ['R&B minor feel', 'Earned It'] },
+      ],
+    },
+    {
+      genre: 'Flamenco / Latin',
+      items: [
+        { name: 'i–VII–VI–V', degrees: [1,7,6,5], songs: ['Andalusian Cadence', 'Malagueña', 'Malaguena'] },
+        { name: 'i–iv–V–i', degrees: [1,4,5,1], songs: ['Classical Flamenco', 'La Cumparsita'] },
+        { name: 'i–VII–VI–VII–i', degrees: [1,7,6,7,1], songs: ['Spanish romance', 'Bamboleo'] },
+      ],
+    },
+  ],
+};
 
 // ─── Voicing Templates ───────────────────────────────────────────────────────
 
@@ -200,6 +350,7 @@ const initialState = {
   autoRounds: true,
   autoRoundsTarget: 10,
 
+  customSequence: null,
   sessionActive: false,
   sessionPaused: false,
   pausedElapsed: 0,
@@ -231,7 +382,7 @@ const initialState = {
 };
 
 function buildRound(state, key, scale) {
-  const seq = generateSequence(state.sequenceLength);
+  const seq = state.customSequence || generateSequence(state.sequenceLength);
   const chords = seq.map(d => getChordAtDegree(key, scale, d));
   return {
     sequence: seq,
@@ -246,6 +397,7 @@ function reducer(state, action) {
   switch (action.type) {
     case 'SET_VIEW': return { ...state, view: action.view };
     case 'SET_CONFIG': return { ...state, [action.key]: action.value };
+    case 'SET_CUSTOM_SEQUENCE': return { ...state, customSequence: action.sequence, scaleType: action.scaleType || state.scaleType };
 
     case 'START_SESSION': {
       const key = resolveKey(state.key);
@@ -364,6 +516,7 @@ function reducer(state, action) {
       sessionPaused: false,
       pausedElapsed: 0,
       pausedAt: null,
+      customSequence: null,
       roundState: 'config',
       currentBeat: -1,
       micActive: false,
@@ -438,11 +591,11 @@ function Header({ view, dispatch }) {
         <span className="font-bold text-lg tracking-wide text-white">FretBoard</span>
       </div>
       <nav className="flex gap-1">
-        {[['practice','Practice',Guitar],['logbook','Logbook',BookOpen]].map(([v,label,Icon]) => (
+        {[['practice','Practice',Guitar],['progressions','Progressions',Music],['logbook','Logbook',BookOpen]].map(([v,label,Icon]) => (
           <button key={v} onClick={() => dispatch({type:'SET_VIEW', view:v})}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded text-sm font-medium transition-colors
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-sm font-medium transition-colors
               ${view===v ? 'bg-amber-500 text-gray-950' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
-            <Icon size={14}/>{label}
+            <Icon size={14}/><span className="hidden sm:inline">{label}</span>
           </button>
         ))}
       </nav>
@@ -851,6 +1004,86 @@ function SummaryStats({ logbook }) {
   );
 }
 
+function ProgressionsView({ state, dispatch }) {
+  const [activeScale, setActiveScale] = useState('Major');
+  const [activeGenre, setActiveGenre] = useState('All');
+  const previewKey = (state.key === 'Random' ? 'C' : state.key);
+
+  const groups = PROGRESSIONS[activeScale] || PROGRESSIONS.Major;
+  const genres = ['All', ...groups.map(g => g.genre)];
+  const filtered = activeGenre === 'All' ? groups : groups.filter(g => g.genre === activeGenre);
+
+  const handlePractice = (degrees, scaleType) => {
+    dispatch({ type: 'SET_CUSTOM_SEQUENCE', sequence: degrees, scaleType });
+    dispatch({ type: 'START_SESSION' });
+    dispatch({ type: 'SET_VIEW', view: 'practice' });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Scale toggle */}
+      <div className="flex gap-2">
+        {['Major','Minor'].map(s => (
+          <button key={s} onClick={() => { setActiveScale(s); setActiveGenre('All'); }}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors
+              ${activeScale === s ? 'bg-amber-500 text-gray-950' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+            {s}
+          </button>
+        ))}
+        <span className="ml-auto text-xs text-gray-500 self-center">Preview key: <span className="text-amber-400 font-mono">{previewKey}</span></span>
+      </div>
+
+      {/* Genre filter */}
+      <div className="flex gap-1.5 flex-wrap">
+        {genres.map(g => (
+          <button key={g} onClick={() => setActiveGenre(g)}
+            className={`px-3 py-1 rounded-full text-xs font-medium transition-colors
+              ${activeGenre === g ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-500 hover:text-gray-300'}`}>
+            {g}
+          </button>
+        ))}
+      </div>
+
+      {/* Progression cards */}
+      {filtered.map(group => (
+        <div key={group.genre} className="space-y-2">
+          <h3 className="text-xs font-bold text-amber-400 uppercase tracking-widest px-1">{group.genre}</h3>
+          <div className="space-y-2">
+            {group.items.map((prog, idx) => {
+              const chordNames = prog.degrees.map(d => getChordAtDegree(previewKey, activeScale, d).name);
+              const romans = prog.degrees.map(d => degLabel(d, activeScale));
+              return (
+                <div key={idx} className="bg-gray-900 border border-gray-700 rounded-xl p-4 space-y-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-white text-sm">{prog.name}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 truncate">{prog.songs.join(' · ')}</p>
+                    </div>
+                    <button
+                      onClick={() => handlePractice(prog.degrees, activeScale)}
+                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold rounded-lg text-xs transition-colors">
+                      <Play size={11}/> Practice
+                    </button>
+                  </div>
+                  {/* Chord pills */}
+                  <div className="flex gap-1.5 flex-wrap">
+                    {prog.degrees.map((d, i) => (
+                      <div key={i} className="flex flex-col items-center bg-gray-800 rounded-lg px-2.5 py-1.5 min-w-[36px]">
+                        <span className="text-[10px] text-gray-500 font-mono leading-tight">{romans[i]}</span>
+                        <span className="text-sm font-bold text-white leading-tight">{chordNames[i]}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function LogbookView({ logbook, dispatch }) {
   const handleDelete = async (id) => {
     try {
@@ -1183,6 +1416,8 @@ export default function App() {
       <main className={`max-w-2xl mx-auto px-4 py-6 space-y-4 ${sessionActive ? 'pb-24' : ''}`}>
         {view === 'logbook' ? (
           <LogbookView logbook={state.logbook} dispatch={dispatch}/>
+        ) : view === 'progressions' ? (
+          <ProgressionsView state={state} dispatch={dispatch}/>
         ) : (
           <>
             {!sessionActive ? (

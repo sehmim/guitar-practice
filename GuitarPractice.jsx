@@ -1,5 +1,5 @@
 import { useState, useReducer, useRef, useEffect, useCallback } from "react";
-import { Guitar, BookOpen, Mic, MicOff, Play, Square, SkipForward, Eye, EyeOff, ChevronRight, Star, Trash2, Clock, Target, Flame, Volume2 } from "lucide-react";
+import { Guitar, BookOpen, Mic, MicOff, Play, Pause, Square, SkipForward, Eye, EyeOff, ChevronRight, Star, Trash2, Clock, Target, Flame, Volume2 } from "lucide-react";
 
 // ─── Music Theory ────────────────────────────────────────────────────────────
 
@@ -176,6 +176,9 @@ const initialState = {
   beatsPerChord: 4,
 
   sessionActive: false,
+  sessionPaused: false,
+  pausedElapsed: 0,
+  pausedAt: null,
   sessionKey: 'C',
   sessionScale: 'Major',
   sequence: [],
@@ -316,9 +319,25 @@ function reducer(state, action) {
     case 'SET_DETECTED': return { ...state, detectedNote: action.note, detectedFreq: action.freq };
     case 'SET_PEEK': return { ...state, peekActive: action.value };
 
+    case 'PAUSE_SESSION': return {
+      ...state,
+      sessionPaused: true,
+      pausedAt: Date.now(),
+    };
+
+    case 'RESUME_SESSION': return {
+      ...state,
+      sessionPaused: false,
+      pausedElapsed: state.pausedElapsed + (state.pausedAt ? Date.now() - state.pausedAt : 0),
+      pausedAt: null,
+    };
+
     case 'END_SESSION': return {
       ...state,
       sessionActive: false,
+      sessionPaused: false,
+      pausedElapsed: 0,
+      pausedAt: null,
       roundState: 'config',
       currentBeat: -1,
       micActive: false,
@@ -505,13 +524,16 @@ function BeatIndicator({ currentBeat, beatsPerChord, countingIn }) {
   );
 }
 
-function Timer({ startTime }) {
+function Timer({ startTime, pausedElapsed, paused }) {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     if (!startTime) return;
-    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startTime) / 1000)), 1000);
+    const calc = () => Math.max(0, Math.floor(((Date.now() - startTime) - pausedElapsed) / 1000));
+    if (paused) { setElapsed(calc()); return; }
+    setElapsed(calc());
+    const id = setInterval(() => setElapsed(calc()), 1000);
     return () => clearInterval(id);
-  }, [startTime]);
+  }, [startTime, pausedElapsed, paused]);
   const m = String(Math.floor(elapsed/60)).padStart(2,'0');
   const s = String(elapsed%60).padStart(2,'0');
   return <span className="text-gray-400 text-sm font-mono">{m}:{s}</span>;
@@ -528,7 +550,7 @@ function ChordCard({ chord, result, revealed, isCurrent, degree, displayMode, sh
     : 'bg-gray-900 border-gray-700';
 
   return (
-    <div className={`relative border-2 rounded-xl p-4 transition-all duration-200 flex flex-col items-center gap-2 min-w-[100px]
+    <div className={`relative border-2 rounded-xl p-3 sm:p-4 transition-all duration-200 flex flex-col items-center gap-2 w-full
       ${bgColor} ${isCurrent ? 'shadow-lg shadow-amber-900/40' : ''}`}>
       {showDegree && (
         <span className="text-xs font-bold text-gray-500 uppercase">Degree {degree}</span>
@@ -842,7 +864,7 @@ export default function App() {
   currentChordIndexRef.current = state.currentChordIndex;
 
   useEffect(() => {
-    if (!state.micActive || state.roundState !== 'playing') {
+    if (!state.micActive || state.roundState !== 'playing' || state.sessionPaused) {
       cancelAnimationFrame(detectionRafRef.current);
       return;
     }
@@ -875,7 +897,7 @@ export default function App() {
     }
     loop();
     return () => cancelAnimationFrame(detectionRafRef.current);
-  }, [state.micActive, state.roundState]);
+  }, [state.micActive, state.roundState, state.sessionPaused]);
 
   // Metronome
   const scheduleClick = useCallback((time, isDownbeat) => {
@@ -891,7 +913,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!state.tempoEnabled || !state.sessionActive ||
+    if (!state.tempoEnabled || !state.sessionActive || state.sessionPaused ||
         state.roundState === 'config' || state.roundState === 'session_end' || state.roundState === 'round_complete') {
       clearInterval(metronomeRef.current);
       return;
@@ -943,7 +965,7 @@ export default function App() {
     }, 25);
 
     return () => clearInterval(metronomeRef.current);
-  }, [state.tempoEnabled, state.sessionActive, state.roundState, state.bpm, state.timeSignature, state.beatsPerChord, scheduleClick]);
+  }, [state.tempoEnabled, state.sessionActive, state.sessionPaused, state.roundState, state.bpm, state.timeSignature, state.beatsPerChord, scheduleClick]);
 
   // Start mic / AudioContext when session starts
   useEffect(() => {
@@ -962,7 +984,7 @@ export default function App() {
 
   const handleSaveSession = async (rating) => {
     setShowEffectivenessModal(false);
-    const elapsed = state.sessionStartTime ? (Date.now() - state.sessionStartTime) / 60000 : 0;
+    const elapsed = state.sessionStartTime ? ((Date.now() - state.sessionStartTime - state.pausedElapsed) / 60000) : 0;
     const acc = state.totalChords ? Math.round((state.correctChords / state.totalChords) * 100) : 0;
     const entry = {
       id: `session_${Date.now()}`,
@@ -992,7 +1014,8 @@ export default function App() {
 
   const { sessionActive, sessionKey, sessionScale, chords, chordResults, revealedChords,
     currentChordIndex, roundState, displayMode, showVoicings, peekActive,
-    tempoEnabled, beatsPerChord, currentBeat, countingIn, manualMode, view, storageError } = state;
+    tempoEnabled, beatsPerChord, currentBeat, countingIn, manualMode, view, storageError,
+    sessionPaused, pausedElapsed } = state;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -1015,40 +1038,70 @@ export default function App() {
             ) : (
               <>
                 {/* Session header */}
-                <div className="flex items-center justify-between bg-gray-900 border border-gray-700 rounded-xl px-4 py-3">
-                  <div>
-                    <span className="font-bold text-xl text-amber-400">{sessionKey}</span>
-                    <span className="text-gray-400 ml-2">{sessionScale}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    {tempoEnabled && (
+                <div className="flex items-center justify-between bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div>
+                      <span className="font-bold text-xl text-amber-400">{sessionKey}</span>
+                      <span className="text-gray-400 ml-2">{sessionScale}</span>
+                    </div>
+                    {tempoEnabled && !sessionPaused && (
                       <BeatIndicator currentBeat={currentBeat} beatsPerChord={beatsPerChord} countingIn={countingIn}/>
                     )}
-                    <Timer startTime={state.sessionStartTime}/>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <Timer startTime={state.sessionStartTime} pausedElapsed={pausedElapsed} paused={sessionPaused}/>
+                    {roundState === 'playing' && (
+                      sessionPaused ? (
+                        <button onClick={() => dispatch({ type: 'RESUME_SESSION' })}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold rounded-lg text-sm transition-colors">
+                          <Play size={14}/> Resume
+                        </button>
+                      ) : (
+                        <button onClick={() => dispatch({ type: 'PAUSE_SESSION' })}
+                          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg text-sm transition-colors">
+                          <Pause size={14}/> Pause
+                        </button>
+                      )
+                    )}
                   </div>
                 </div>
 
+                {/* Paused overlay message */}
+                {sessionPaused && (
+                  <div className="bg-gray-900 border border-amber-700/50 rounded-xl p-6 text-center space-y-3">
+                    <Pause size={32} className="mx-auto text-amber-400"/>
+                    <p className="text-lg font-bold text-white">Session Paused</p>
+                    <p className="text-sm text-gray-400">Press Resume to continue</p>
+                    <button onClick={() => dispatch({ type: 'RESUME_SESSION' })}
+                      className="flex items-center gap-2 mx-auto px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold rounded-lg transition-colors">
+                      <Play size={16}/> Resume
+                    </button>
+                  </div>
+                )}
+
                 {/* Sequence */}
-                {roundState !== 'round_complete' && (
-                  <div className="overflow-x-auto">
-                    <div className="flex gap-3 pb-2">
-                      {chords.map((chord, i) => (
-                        <ChordCard key={i}
-                          chord={chord}
-                          result={chordResults[i]}
-                          revealed={revealedChords[i]}
-                          isCurrent={i === currentChordIndex && roundState === 'playing'}
-                          degree={state.sequence[i]}
-                          displayMode={displayMode}
-                          showVoicings={showVoicings}
-                          peekActive={peekActive}/>
-                      ))}
-                    </div>
+                {roundState !== 'round_complete' && !sessionPaused && (
+                  <div className={`grid gap-2 ${
+                    showVoicings
+                      ? 'grid-cols-1 sm:grid-cols-2'
+                      : 'grid-cols-2 sm:grid-cols-4'
+                  }`}>
+                    {chords.map((chord, i) => (
+                      <ChordCard key={i}
+                        chord={chord}
+                        result={chordResults[i]}
+                        revealed={revealedChords[i]}
+                        isCurrent={i === currentChordIndex && roundState === 'playing'}
+                        degree={state.sequence[i]}
+                        displayMode={displayMode}
+                        showVoicings={showVoicings}
+                        peekActive={peekActive}/>
+                    ))}
                   </div>
                 )}
 
                 {/* Quick peek */}
-                {(displayMode === 'numbers_only' || displayMode === 'hidden') && roundState === 'playing' && (
+                {(displayMode === 'numbers_only' || displayMode === 'hidden') && roundState === 'playing' && !sessionPaused && (
                   <div className="flex justify-center">
                     <button
                       onMouseDown={() => dispatch({ type: 'SET_PEEK', value: true })}
@@ -1062,12 +1115,12 @@ export default function App() {
                 )}
 
                 {/* Audio */}
-                {roundState === 'playing' && (
+                {roundState === 'playing' && !sessionPaused && (
                   <AudioDetector state={state} dispatch={dispatch} analyserRef={analyserRef}/>
                 )}
 
                 {/* Manual controls */}
-                {(manualMode || !state.micActive) && roundState === 'playing' && (
+                {(manualMode || !state.micActive) && roundState === 'playing' && !sessionPaused && (
                   <ManualControls state={state} dispatch={dispatch}/>
                 )}
 

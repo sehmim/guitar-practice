@@ -1,5 +1,7 @@
 {
-  ".promptvc/last_prompt_count_claude": "c227083464fb9af8955c90d2924774ee50abb547",
-  ".promptvc/last_session_file_claude": "6be8be86c239145c416b25caeab3a70cd4c76865",
-  "GuitarPractice.jsx": "0a46962fa7b697eecce5521666bea1ca0cda53d9"
+  ".gitignore": "337c259b7dd3d3c062dcf03861b197c4fc75a615",
+  ".promptvc/last_git_state_claude.json": "73f18a41adacb6267799c373c4799d40e0e6527e",
+  ".promptvc/last_prompt_count_claude": "d8263ee9860594d2806b0dfd1bfd17528b0ba2a4",
+  ".promptvc/sessions.json": "eb275717d7ae46382f40efc490c4fe48694bcdaf",
+  "src/App.jsx": "5e7e64c7aa73e7cc35a0d1b3c1beb08a2af84491"
 }

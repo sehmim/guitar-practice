@@ -1,5 +1,5 @@
 import { useState, useReducer, useRef, useEffect, useCallback } from "react";
-import { Guitar, BookOpen, Mic, MicOff, Play, Square, SkipForward, Eye, EyeOff, ChevronRight, Star, Trash2, Clock, Target, Flame, Volume2 } from "lucide-react";
+import { Guitar, BookOpen, Mic, MicOff, Play, Pause, Square, SkipForward, Eye, EyeOff, ChevronRight, Star, Trash2, Clock, Target, Flame, Volume2 } from "lucide-react";
 
 // localStorage adapter (replaces storage from Claude artifact environment)
 const storage = {
@@ -201,6 +201,9 @@ const initialState = {
   autoRoundsTarget: 10,
 
   sessionActive: false,
+  sessionPaused: false,
+  pausedElapsed: 0,
+  pausedAt: null,
   sessionKey: 'C',
   sessionScale: 'Major',
   sequence: [],
@@ -342,9 +345,25 @@ function reducer(state, action) {
     case 'SET_DETECTED': return { ...state, detectedNote: action.note, detectedFreq: action.freq };
     case 'SET_PEEK': return { ...state, peekActive: action.value };
 
+    case 'PAUSE_SESSION': return {
+      ...state,
+      sessionPaused: true,
+      pausedAt: Date.now(),
+    };
+
+    case 'RESUME_SESSION': return {
+      ...state,
+      sessionPaused: false,
+      pausedElapsed: state.pausedElapsed + (state.pausedAt ? Date.now() - state.pausedAt : 0),
+      pausedAt: null,
+    };
+
     case 'END_SESSION': return {
       ...state,
       sessionActive: false,
+      sessionPaused: false,
+      pausedElapsed: 0,
+      pausedAt: null,
       roundState: 'config',
       currentBeat: -1,
       micActive: false,
@@ -562,19 +581,22 @@ function BeatIndicator({ currentBeat, beatsPerChord, countingIn }) {
   );
 }
 
-function Timer({ startTime }) {
+function Timer({ startTime, pausedElapsed = 0, paused = false }) {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     if (!startTime) return;
-    const id = setInterval(() => setElapsed(Math.floor((Date.now() - startTime) / 1000)), 1000);
+    const calc = () => Math.max(0, Math.floor(((Date.now() - startTime) - pausedElapsed) / 1000));
+    if (paused) { setElapsed(calc()); return; }
+    setElapsed(calc());
+    const id = setInterval(() => setElapsed(calc()), 1000);
     return () => clearInterval(id);
-  }, [startTime]);
+  }, [startTime, pausedElapsed, paused]);
   const m = String(Math.floor(elapsed/60)).padStart(2,'0');
   const s = String(elapsed%60).padStart(2,'0');
   return <span className="text-gray-400 text-sm font-mono">{m}:{s}</span>;
 }
 
-function ChordCard({ chord, result, revealed, isCurrent, degree, displayMode, showVoicings, peekActive, currentBeat, tempoEnabled }) {
+function ChordCard({ chord, result, revealed, isCurrent, degree, displayMode, showVoicings, peekActive, currentBeat, tempoEnabled, onViewVoicings }) {
   const [flash, setFlash] = useState(false);
   const prevBeat = useRef(-1);
 
@@ -589,7 +611,7 @@ function ChordCard({ chord, result, revealed, isCurrent, degree, displayMode, sh
 
   const showName = displayMode === 'full' || peekActive || revealed;
   const showDegree = displayMode !== 'hidden' || peekActive || revealed;
-  const voicings = showVoicings && showName ? getVoicings(chord.root, chord.quality) : [];
+  const canViewVoicing = showVoicings && showName;
 
   const bgColor = result === 'correct' ? 'bg-green-900 border-green-600'
     : result === 'incorrect' ? 'bg-red-900 border-red-700'
@@ -597,36 +619,60 @@ function ChordCard({ chord, result, revealed, isCurrent, degree, displayMode, sh
     : 'bg-gray-900 border-gray-700';
 
   return (
-    <div className={`relative border-2 rounded-xl p-4 flex flex-col items-center gap-2 min-w-[100px]
-      transition-all duration-150
-      ${bgColor}
-      ${isCurrent ? 'shadow-lg shadow-amber-900/40' : ''}
-      ${flash ? 'scale-105 shadow-xl shadow-amber-500/50 border-amber-300' : ''}`}>
+    <div
+      onClick={canViewVoicing ? onViewVoicings : undefined}
+      className={`relative border-2 rounded-xl p-3 flex flex-col items-center gap-1 w-full
+        transition-all duration-150
+        ${bgColor}
+        ${isCurrent ? 'shadow-lg shadow-amber-900/40' : ''}
+        ${flash ? 'scale-105 shadow-xl shadow-amber-500/50 border-amber-300' : ''}
+        ${canViewVoicing ? 'cursor-pointer active:scale-95' : ''}`}>
       {showDegree && (
-        <span className="text-xs font-bold text-gray-500 uppercase">Degree {degree}</span>
+        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Deg {degree}</span>
       )}
       {showName ? (
-        <span className={`text-2xl sm:text-3xl font-bold transition-colors duration-75 ${flash ? 'text-amber-200' : 'text-white'}`}>{chord.name}</span>
+        <span className={`text-2xl font-bold leading-tight transition-colors duration-75 ${flash ? 'text-amber-200' : 'text-white'}`}>{chord.name}</span>
       ) : showDegree ? (
-        <span className={`text-2xl sm:text-3xl font-bold transition-colors duration-75 ${flash ? 'text-white' : 'text-amber-400'}`}>{degree}</span>
+        <span className={`text-2xl font-bold leading-tight transition-colors duration-75 ${flash ? 'text-white' : 'text-amber-400'}`}>{degree}</span>
       ) : (
-        <span className="text-2xl sm:text-3xl font-bold text-gray-700">—</span>
+        <span className="text-2xl font-bold leading-tight text-gray-700">—</span>
       )}
       {isCurrent && result === 'pending' && (
         <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-amber-400 rounded-full animate-pulse"/>
       )}
-      {result === 'correct' && <span className="text-green-400 text-lg">✓</span>}
-      {result === 'incorrect' && <span className="text-red-400 text-lg">✗</span>}
-      {voicings.length > 0 && (
-        <div className="flex gap-1 flex-wrap justify-center mt-1">
+      {result === 'correct' && <span className="text-green-400 text-sm">✓</span>}
+      {result === 'incorrect' && <span className="text-red-400 text-sm">✗</span>}
+      {canViewVoicing && (
+        <span className="text-[9px] text-gray-600 mt-0.5">tap</span>
+      )}
+    </div>
+  );
+}
+
+function VoicingPopup({ chord, onClose }) {
+  const voicings = getVoicings(chord.root, chord.quality);
+  return (
+    <div className="fixed inset-0 bg-black/80 flex items-end sm:items-center justify-center z-50"
+      onClick={onClose}>
+      <div className="bg-gray-900 border border-gray-700 rounded-t-2xl sm:rounded-2xl p-5 w-full max-w-sm"
+        onClick={e => e.stopPropagation()}>
+        <div className="flex justify-between items-center mb-4">
+          <h3 className="font-bold text-white text-lg">{chord.name} voicings</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">✕</button>
+        </div>
+        <div className="flex gap-4 justify-center flex-wrap">
           {voicings.map((v, i) => (
-            <div key={i} className="bg-gray-950/60 rounded p-0.5">
-              <div className="text-xs text-gray-500 text-center mb-0.5">{v.shape}</div>
+            <div key={i} className="bg-gray-800 rounded-xl p-3 flex flex-col items-center gap-1">
+              <span className="text-xs text-gray-400 font-medium">{v.shape} shape</span>
               <ChordVoicingDiagram voicing={v}/>
             </div>
           ))}
         </div>
-      )}
+        <button onClick={onClose}
+          className="mt-4 w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-sm font-medium transition-colors">
+          Close
+        </button>
+      </div>
     </div>
   );
 }
@@ -866,6 +912,7 @@ function LogbookView({ logbook, dispatch }) {
 export default function App() {
   const [state, dispatch] = useReducer(reducer, initialState);
   const [showEffectivenessModal, setShowEffectivenessModal] = useState(false);
+  const [voicingPopupChord, setVoicingPopupChord] = useState(null);
 
   const audioCtxRef = useRef(null);
   const analyserRef = useRef(null);
@@ -927,7 +974,7 @@ export default function App() {
   currentChordIndexRef.current = state.currentChordIndex;
 
   useEffect(() => {
-    if (!state.micActive || state.roundState !== 'playing') {
+    if (!state.micActive || state.roundState !== 'playing' || state.sessionPaused) {
       cancelAnimationFrame(detectionRafRef.current);
       return;
     }
@@ -991,7 +1038,7 @@ export default function App() {
     }
     loop();
     return () => cancelAnimationFrame(detectionRafRef.current);
-  }, [state.micActive, state.roundState]);
+  }, [state.micActive, state.roundState, state.sessionPaused]);
 
   // Metronome
   const scheduleClick = useCallback((time, isDownbeat) => {
@@ -1007,7 +1054,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!state.tempoEnabled || !state.sessionActive ||
+    if (!state.tempoEnabled || !state.sessionActive || state.sessionPaused ||
         state.roundState === 'config' || state.roundState === 'session_end' || state.roundState === 'round_complete') {
       clearInterval(metronomeRef.current);
       return;
@@ -1070,7 +1117,7 @@ export default function App() {
     }, 25);
 
     return () => clearInterval(metronomeRef.current);
-  }, [state.tempoEnabled, state.sessionActive, state.roundState, state.bpm, state.timeSignature, state.beatsPerChord, scheduleClick]);
+  }, [state.tempoEnabled, state.sessionActive, state.sessionPaused, state.roundState, state.bpm, state.timeSignature, state.beatsPerChord, scheduleClick]);
 
   // Start mic / AudioContext when session starts
   useEffect(() => {
@@ -1119,7 +1166,8 @@ export default function App() {
 
   const { sessionActive, sessionKey, sessionScale, chords, chordResults, revealedChords,
     currentChordIndex, roundState, displayMode, showVoicings, peekActive,
-    tempoEnabled, beatsPerChord, currentBeat, countingIn, manualMode, view, storageError } = state;
+    tempoEnabled, beatsPerChord, currentBeat, countingIn, manualMode, view, storageError,
+    sessionPaused, pausedElapsed } = state;
 
   return (
     <div className="min-h-screen bg-gray-950 text-white">
@@ -1132,7 +1180,7 @@ export default function App() {
         </div>
       )}
 
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+      <main className={`max-w-2xl mx-auto px-4 py-6 space-y-4 ${sessionActive ? 'pb-24' : ''}`}>
         {view === 'logbook' ? (
           <LogbookView logbook={state.logbook} dispatch={dispatch}/>
         ) : (
@@ -1142,42 +1190,53 @@ export default function App() {
             ) : (
               <>
                 {/* Session header */}
-                <div className="flex items-center justify-between bg-gray-900 border border-gray-700 rounded-xl px-4 py-3">
-                  <div>
-                    <span className="font-bold text-xl text-amber-400">{sessionKey}</span>
-                    <span className="text-gray-400 ml-2">{sessionScale}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    {tempoEnabled && (
+                <div className="flex items-center justify-between bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div>
+                      <span className="font-bold text-xl text-amber-400">{sessionKey}</span>
+                      <span className="text-gray-400 ml-2">{sessionScale}</span>
+                    </div>
+                    {tempoEnabled && !sessionPaused && (
                       <BeatIndicator currentBeat={currentBeat} beatsPerChord={beatsPerChord} countingIn={countingIn}/>
                     )}
-                    <Timer startTime={state.sessionStartTime}/>
                   </div>
+                  <Timer startTime={state.sessionStartTime} pausedElapsed={pausedElapsed} paused={sessionPaused}/>
                 </div>
 
-                {/* Sequence */}
-                {(roundState === 'playing' || roundState === 'round_complete' || roundState === 'countdown') && (
-                  <div className="overflow-x-auto">
-                    <div className="flex gap-3 pb-2">
-                      {chords.map((chord, i) => (
-                        <ChordCard key={i}
-                          chord={chord}
-                          result={chordResults[i]}
-                          revealed={revealedChords[i]}
-                          isCurrent={i === currentChordIndex && roundState === 'playing'}
-                          degree={state.sequence[i]}
-                          displayMode={displayMode}
-                          showVoicings={showVoicings}
-                          peekActive={peekActive}
-                          currentBeat={currentBeat}
-                          tempoEnabled={tempoEnabled}/>
-                      ))}
-                    </div>
+                {/* Paused overlay */}
+                {sessionPaused && (
+                  <div className="bg-gray-900 border border-amber-700/50 rounded-xl p-8 text-center space-y-3">
+                    <Pause size={36} className="mx-auto text-amber-400"/>
+                    <p className="text-lg font-bold text-white">Session Paused</p>
+                    <button onClick={() => dispatch({ type: 'RESUME_SESSION' })}
+                      className="flex items-center gap-2 mx-auto px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold rounded-lg transition-colors">
+                      <Play size={16}/> Resume
+                    </button>
+                  </div>
+                )}
+
+                {/* Chord grid — 3 cols mobile, 4 cols sm+ */}
+                {(roundState === 'playing' || roundState === 'round_complete' || roundState === 'countdown') && !sessionPaused && (
+                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
+                    {chords.map((chord, i) => (
+                      <ChordCard key={i}
+                        chord={chord}
+                        result={chordResults[i]}
+                        revealed={revealedChords[i]}
+                        isCurrent={i === currentChordIndex && roundState === 'playing'}
+                        degree={state.sequence[i]}
+                        displayMode={displayMode}
+                        showVoicings={showVoicings}
+                        peekActive={peekActive}
+                        currentBeat={currentBeat}
+                        tempoEnabled={tempoEnabled}
+                        onViewVoicings={() => setVoicingPopupChord(chord)}/>
+                    ))}
                   </div>
                 )}
 
                 {/* Quick peek */}
-                {(displayMode === 'numbers_only' || displayMode === 'hidden') && roundState === 'playing' && (
+                {(displayMode === 'numbers_only' || displayMode === 'hidden') && roundState === 'playing' && !sessionPaused && (
                   <div className="flex justify-center">
                     <button
                       onMouseDown={() => dispatch({ type: 'SET_PEEK', value: true })}
@@ -1191,12 +1250,12 @@ export default function App() {
                 )}
 
                 {/* Audio */}
-                {roundState === 'playing' && (
+                {roundState === 'playing' && !sessionPaused && (
                   <AudioDetector state={state} dispatch={dispatch} analyserRef={analyserRef}/>
                 )}
 
                 {/* Manual controls */}
-                {(manualMode || !state.micActive) && roundState === 'playing' && (
+                {(manualMode || !state.micActive) && roundState === 'playing' && !sessionPaused && (
                   <ManualControls state={state} dispatch={dispatch}/>
                 )}
 
@@ -1204,23 +1263,35 @@ export default function App() {
                 {roundState === 'round_complete' && (
                   <RoundComplete state={state} dispatch={dispatch} onEndSession={handleEndSession}/>
                 )}
-
-                {/* End session button while playing */}
-                {roundState === 'playing' && (
-                  <div className="flex justify-end">
-                    <button onClick={handleEndSession}
-                      className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-red-400 transition-colors">
-                      <Square size={13}/> End Session
-                    </button>
-                  </div>
-                )}
               </>
             )}
           </>
         )}
       </main>
 
+      {/* Fixed bottom session controls */}
+      {sessionActive && roundState === 'playing' && (
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-gray-950/95 backdrop-blur border-t border-gray-800 px-4 py-3 flex items-center justify-between gap-3">
+          {sessionPaused ? (
+            <button onClick={() => dispatch({ type: 'RESUME_SESSION' })}
+              className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold rounded-lg text-sm transition-colors">
+              <Play size={15}/> Resume
+            </button>
+          ) : (
+            <button onClick={() => dispatch({ type: 'PAUSE_SESSION' })}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors">
+              <Pause size={15}/> Pause
+            </button>
+          )}
+          <button onClick={handleEndSession}
+            className="flex items-center gap-2 px-4 py-2 bg-red-900/80 hover:bg-red-800 text-red-200 rounded-lg text-sm font-medium transition-colors">
+            <Square size={14}/> End Session
+          </button>
+        </div>
+      )}
+
       {showEffectivenessModal && <EffectivenessModal onSave={handleSaveSession}/>}
+      {voicingPopupChord && <VoicingPopup chord={voicingPopupChord} onClose={() => setVoicingPopupChord(null)}/>}
     </div>
   );
 }

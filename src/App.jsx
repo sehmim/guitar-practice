@@ -1,5 +1,5 @@
 import { useState, useReducer, useRef, useEffect, useCallback } from "react";
-import { Guitar, BookOpen, Music, Mic, MicOff, Play, Pause, Square, SkipForward, Eye, EyeOff, ChevronRight, Star, Trash2, Clock, Target, Flame, Volume2 } from "lucide-react";
+import { Guitar, BookOpen, Music, Mic, MicOff, Play, Pause, Square, SkipForward, Eye, EyeOff, ChevronRight, Star, Trash2, Clock, Target, Flame, Volume2, VolumeX } from "lucide-react";
 
 // localStorage adapter (replaces storage from Claude artifact environment)
 const storage = {
@@ -280,24 +280,24 @@ function ChordVoicingDiagram({ voicing }) {
     <svg width={W} height={H} className="flex-shrink-0">
       {/* Fret position label */}
       {displayBase > 0 && (
-        <text x={W - 4} y={TOP + fretGap * 0.5 + 4} textAnchor="end" fontSize={9} fill="#9ca3af">{displayBase}fr</text>
+        <text x={W - 4} y={TOP + fretGap * 0.5 + 4} textAnchor="end" fontSize={9} fill="#A3A3A3">{displayBase}fr</text>
       )}
 
       {/* Nut */}
       {showNut && (
-        <rect x={LEFT} y={TOP - 3} width={(strings-1)*strGap} height={4} fill="#e5e7eb" rx={1}/>
+        <rect x={LEFT} y={TOP - 3} width={(strings-1)*strGap} height={4} fill="#D4D4D4" rx={1}/>
       )}
 
       {/* Fret lines */}
       {Array.from({length: numFrets+1}, (_,i) => (
         <line key={i} x1={LEFT} y1={TOP + i*fretGap} x2={LEFT+(strings-1)*strGap} y2={TOP+i*fretGap}
-          stroke="#374151" strokeWidth={i===0 && !showNut ? 1 : 0.5}/>
+          stroke="#555555" strokeWidth={i===0 && !showNut ? 1 : 0.5}/>
       ))}
 
       {/* String lines */}
       {Array.from({length: strings}, (_,i) => (
         <line key={i} x1={LEFT+i*strGap} y1={TOP} x2={LEFT+i*strGap} y2={TOP+numFrets*fretGap}
-          stroke="#4b5563" strokeWidth={0.5}/>
+          stroke="#666666" strokeWidth={0.5}/>
       ))}
 
       {/* Barre */}
@@ -305,15 +305,15 @@ function ChordVoicingDiagram({ voicing }) {
         const bY = TOP + (barreFret - displayBase - 0.5) * fretGap;
         return (
           <rect x={LEFT} y={bY - 5} width={(strings-1)*strGap} height={10}
-            fill="#6b7280" rx={5} opacity={0.8}/>
+            fill="#808080" rx={5} opacity={0.8}/>
         );
       })()}
 
       {/* X / O above strings */}
       {frets.map((f, i) => {
         const x = LEFT + (5-i) * strGap;
-        if (f === -1) return <text key={i} x={x} y={TOP-6} textAnchor="middle" fontSize={9} fill="#ef4444">×</text>;
-        if (f === 0) return <text key={i} x={x} y={TOP-6} textAnchor="middle" fontSize={9} fill="#9ca3af">○</text>;
+        if (f === -1) return <text key={i} x={x} y={TOP-6} textAnchor="middle" fontSize={9} fill="#FF4444">×</text>;
+        if (f === 0) return <text key={i} x={x} y={TOP-6} textAnchor="middle" fontSize={9} fill="#A3A3A3">○</text>;
         return null;
       })}
 
@@ -327,7 +327,7 @@ function ChordVoicingDiagram({ voicing }) {
         const isRoot = (6-i) === rootString;
         return (
           <circle key={i} cx={x} cy={y} r={5}
-            fill={isRoot ? '#f59e0b' : '#9ca3af'}/>
+            fill={isRoot ? '#FFB900' : '#A3A3A3'}/>
         );
       })}
     </svg>
@@ -344,6 +344,7 @@ const initialState = {
   displayMode: 'numbers_only',
   showVoicings: true,
   tempoEnabled: true,
+  metronomeAudible: true,
   bpm: 80,
   timeSignature: '4/4',
   beatsPerChord: 4,
@@ -397,6 +398,7 @@ function reducer(state, action) {
   switch (action.type) {
     case 'SET_VIEW': return { ...state, view: action.view };
     case 'SET_CONFIG': return { ...state, [action.key]: action.value };
+    case 'TOGGLE_METRONOME': return { ...state, metronomeAudible: !state.metronomeAudible };
     case 'SET_CUSTOM_SEQUENCE': return { ...state, customSequence: action.sequence, scaleType: action.scaleType || state.scaleType };
 
     case 'START_SESSION': {
@@ -585,16 +587,16 @@ function topChromaNote(chroma) {
 
 function Header({ view, dispatch }) {
   return (
-    <header className="flex items-center justify-between px-4 py-3 border-b border-gray-800 bg-gray-900">
+    <header className="flex items-center justify-between px-4 py-3 border-b border-[#555555] bg-[#3C3C3C]">
       <div className="flex items-center gap-2">
-        <Guitar size={22} className="text-amber-400"/>
+        <Guitar size={22} className="text-[#FFB900]"/>
         <span className="font-bold text-lg tracking-wide text-white">FretBoard</span>
       </div>
       <nav className="flex gap-1">
         {[['practice','Practice',Guitar],['progressions','Progressions',Music],['logbook','Logbook',BookOpen]].map(([v,label,Icon]) => (
           <button key={v} onClick={() => dispatch({type:'SET_VIEW', view:v})}
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded text-sm font-medium transition-colors
-              ${view===v ? 'bg-amber-500 text-gray-950' : 'text-gray-400 hover:text-white hover:bg-gray-800'}`}>
+              ${view===v ? 'bg-[#FFB900] text-gray-950' : 'text-[#A3A3A3] hover:text-white hover:bg-[#505050]'}`}>
             <Icon size={14}/><span className="hidden sm:inline">{label}</span>
           </button>
         ))}
@@ -604,19 +606,19 @@ function Header({ view, dispatch }) {
 }
 
 function ConfigPanel({ state, dispatch }) {
-  const { key, scaleType, sequenceLength, displayMode, showVoicings, tempoEnabled, bpm, timeSignature, beatsPerChord, autoRounds, autoRoundsTarget } = state;
+  const { key, scaleType, sequenceLength, displayMode, showVoicings, bpm, timeSignature, beatsPerChord, autoRounds, autoRoundsTarget } = state;
   const set = (k, v) => dispatch({ type: 'SET_CONFIG', key: k, value: v });
 
   return (
-    <div className="bg-gray-900 border border-gray-700 rounded-xl p-5 space-y-4">
-      <h2 className="text-amber-400 font-semibold text-sm uppercase tracking-widest">Setup</h2>
+    <div className="bg-[#3C3C3C] border border-[#666666] rounded-xl p-5 space-y-4">
+      <h2 className="text-[#FFB900] font-semibold text-sm uppercase tracking-widest">Setup</h2>
 
       <div className="grid grid-cols-2 gap-3">
         {/* Key */}
         <div>
-          <label className="text-xs text-gray-500 mb-1 block">Key</label>
+          <label className="text-xs text-[#7A7A7A] mb-1 block">Key</label>
           <select value={key} onChange={e => set('key', e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm">
+            className="w-full bg-[#505050] border border-[#666666] rounded px-2 py-1.5 text-white text-sm">
             <option value="Random">Random</option>
             {NOTES.map(n => <option key={n} value={n}>{n}</option>)}
           </select>
@@ -624,26 +626,26 @@ function ConfigPanel({ state, dispatch }) {
 
         {/* Scale */}
         <div>
-          <label className="text-xs text-gray-500 mb-1 block">Scale</label>
+          <label className="text-xs text-[#7A7A7A] mb-1 block">Scale</label>
           <select value={scaleType} onChange={e => set('scaleType', e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm">
+            className="w-full bg-[#505050] border border-[#666666] rounded px-2 py-1.5 text-white text-sm">
             {['Major','Minor','Random'].map(s => <option key={s} value={s}>{s}</option>)}
           </select>
         </div>
 
         {/* Sequence length */}
         <div>
-          <label className="text-xs text-gray-500 mb-1 block">Chords ({sequenceLength})</label>
+          <label className="text-xs text-[#7A7A7A] mb-1 block">Chords ({sequenceLength})</label>
           <input type="range" min={1} max={8} value={sequenceLength}
             onChange={e => set('sequenceLength', Number(e.target.value))}
-            className="w-full accent-amber-500"/>
+            className="w-full accent-[#FFB900]"/>
         </div>
 
         {/* Display mode */}
         <div>
-          <label className="text-xs text-gray-500 mb-1 block">Display</label>
+          <label className="text-xs text-[#7A7A7A] mb-1 block">Display</label>
           <select value={displayMode} onChange={e => set('displayMode', e.target.value)}
-            className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm">
+            className="w-full bg-[#505050] border border-[#666666] rounded px-2 py-1.5 text-white text-sm">
             <option value="full">Full</option>
             <option value="numbers_only">Numbers Only</option>
             <option value="hidden">Hidden</option>
@@ -654,64 +656,60 @@ function ConfigPanel({ state, dispatch }) {
       {/* Voicings toggle */}
       <label className="flex items-center gap-2 cursor-pointer">
         <input type="checkbox" checked={showVoicings} onChange={e => set('showVoicings', e.target.checked)}
-          className="accent-amber-500"/>
-        <span className="text-sm text-gray-300">Show Voicing Diagrams</span>
+          className="accent-[#FFB900]"/>
+        <span className="text-sm text-[#D4D4D4]">Show Voicing Diagrams</span>
       </label>
 
       {/* Auto rounds */}
       <div className="flex items-center gap-3">
         <label className="flex items-center gap-2 cursor-pointer">
           <input type="checkbox" checked={autoRounds} onChange={e => set('autoRounds', e.target.checked)}
-            className="accent-amber-500"/>
-          <span className="text-sm text-gray-300">Auto-advance rounds</span>
+            className="accent-[#FFB900]"/>
+          <span className="text-sm text-[#D4D4D4]">Auto-advance rounds</span>
         </label>
         {autoRounds && (
           <div className="flex items-center gap-1.5 ml-auto">
-            <span className="text-xs text-gray-500">Rounds:</span>
+            <span className="text-xs text-[#7A7A7A]">Rounds:</span>
             <input type="number" min={1} max={50} value={autoRoundsTarget}
               onChange={e => set('autoRoundsTarget', Math.max(1, Number(e.target.value)))}
-              className="w-14 bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white text-sm"/>
+              className="w-14 bg-[#505050] border border-[#666666] rounded px-2 py-1 text-white text-sm"/>
           </div>
         )}
       </div>
 
-      {/* Tempo */}
-      <div className="border border-gray-700 rounded-lg p-3 space-y-3">
-        <label className="flex items-center gap-2 cursor-pointer">
-          <input type="checkbox" checked={tempoEnabled} onChange={e => set('tempoEnabled', e.target.checked)}
-            className="accent-amber-500"/>
-          <span className="text-sm text-gray-300 font-medium">Tempo Mode</span>
-        </label>
-        {tempoEnabled && (
-          <div className="grid grid-cols-3 gap-2">
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">BPM</label>
-              <input type="number" min={40} max={240} value={bpm}
-                onChange={e => set('bpm', Math.max(40, Math.min(240, Number(e.target.value))))}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm"/>
-            </div>
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">Time Sig</label>
-              <select value={timeSignature} onChange={e => set('timeSignature', e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm">
-                {['4/4','3/4','6/8'].map(t => <option key={t} value={t}>{t}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-gray-500 mb-1 block">Beats/Chord</label>
-              <input type="number" min={1} max={8} value={beatsPerChord}
-                onChange={e => set('beatsPerChord', Math.max(1, Math.min(8, Number(e.target.value))))}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-2 py-1.5 text-white text-sm"/>
-            </div>
+      {/* Tempo — always on */}
+      <div className="border border-[#666666] rounded-lg p-3 space-y-3">
+        <p className="text-sm text-[#D4D4D4] font-medium flex items-center gap-2">
+          <Volume2 size={14} className="text-[#FFB900]"/> Tempo
+        </p>
+        <div className="grid grid-cols-3 gap-2">
+          <div>
+            <label className="text-xs text-[#7A7A7A] mb-1 block">BPM</label>
+            <input type="number" min={40} max={240} value={bpm}
+              onChange={e => set('bpm', Math.max(40, Math.min(240, Number(e.target.value))))}
+              className="w-full bg-[#505050] border border-[#666666] rounded px-2 py-1.5 text-white text-sm"/>
           </div>
-        )}
-        {tempoEnabled && bpm >= 160 && beatsPerChord === 1 && (
-          <p className="text-xs text-amber-400">Warning: extremely fast — {(60/bpm).toFixed(2)}s per chord</p>
+          <div>
+            <label className="text-xs text-[#7A7A7A] mb-1 block">Time Sig</label>
+            <select value={timeSignature} onChange={e => set('timeSignature', e.target.value)}
+              className="w-full bg-[#505050] border border-[#666666] rounded px-2 py-1.5 text-white text-sm">
+              {['4/4','3/4','6/8'].map(t => <option key={t} value={t}>{t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-xs text-[#7A7A7A] mb-1 block">Beats/Chord</label>
+            <input type="number" min={1} max={8} value={beatsPerChord}
+              onChange={e => set('beatsPerChord', Math.max(1, Math.min(8, Number(e.target.value))))}
+              className="w-full bg-[#505050] border border-[#666666] rounded px-2 py-1.5 text-white text-sm"/>
+          </div>
+        </div>
+        {bpm >= 160 && beatsPerChord === 1 && (
+          <p className="text-xs text-[#FFB900]">Warning: extremely fast — {(60/bpm).toFixed(2)}s per chord</p>
         )}
       </div>
 
       <button onClick={() => dispatch({ type: 'START_SESSION' })}
-        className="w-full bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
+        className="w-full bg-[#FFB900] hover:bg-[#FFC820] text-gray-950 font-bold py-3 rounded-lg flex items-center justify-center gap-2 transition-colors">
         <Play size={18}/> Start Practice
       </button>
     </div>
@@ -721,13 +719,13 @@ function ConfigPanel({ state, dispatch }) {
 function BeatIndicator({ currentBeat, beatsPerChord, countingIn }) {
   return (
     <div className="flex items-center gap-2">
-      {countingIn && <span className="text-xs text-amber-400 animate-pulse">Count-in…</span>}
+      {countingIn && <span className="text-xs text-[#FFB900] animate-pulse">Count-in…</span>}
       <div className="flex gap-1.5">
         {Array.from({ length: beatsPerChord }, (_, i) => (
           <div key={i} className={`w-2.5 h-2.5 rounded-full transition-all duration-75
             ${i === currentBeat % beatsPerChord
-              ? (currentBeat % beatsPerChord === 0 ? 'bg-amber-400 scale-125' : 'bg-gray-300 scale-110')
-              : 'bg-gray-700'}`}/>
+              ? (currentBeat % beatsPerChord === 0 ? 'bg-[#FFC820] scale-125' : 'bg-[#D4D4D4] scale-110')
+              : 'bg-[#606060]'}`}/>
         ))}
       </div>
     </div>
@@ -746,7 +744,7 @@ function Timer({ startTime, pausedElapsed = 0, paused = false }) {
   }, [startTime, pausedElapsed, paused]);
   const m = String(Math.floor(elapsed/60)).padStart(2,'0');
   const s = String(elapsed%60).padStart(2,'0');
-  return <span className="text-gray-400 text-sm font-mono">{m}:{s}</span>;
+  return <span className="text-[#A3A3A3] text-sm font-mono">{m}:{s}</span>;
 }
 
 function ChordCard({ chord, result, revealed, isCurrent, degree, displayMode, showVoicings, peekActive, currentBeat, tempoEnabled, onViewVoicings }) {
@@ -766,10 +764,10 @@ function ChordCard({ chord, result, revealed, isCurrent, degree, displayMode, sh
   const showDegree = displayMode !== 'hidden' || peekActive || revealed;
   const canViewVoicing = showVoicings && showName;
 
-  const bgColor = result === 'correct' ? 'bg-green-900 border-green-600'
-    : result === 'incorrect' ? 'bg-red-900 border-red-700'
-    : isCurrent ? 'bg-gray-800 border-amber-500'
-    : 'bg-gray-900 border-gray-700';
+  const bgColor = result === 'correct' ? 'bg-[#1A3A1A] border-[#008000]'
+    : result === 'incorrect' ? 'bg-[#3A1A1A] border-[#CC0000]'
+    : isCurrent ? 'bg-[#505050] border-[#FFB900]'
+    : 'bg-[#3C3C3C] border-[#666666]';
 
   return (
     <div
@@ -777,26 +775,26 @@ function ChordCard({ chord, result, revealed, isCurrent, degree, displayMode, sh
       className={`relative border-2 rounded-xl p-3 flex flex-col items-center gap-1 w-full
         transition-all duration-150
         ${bgColor}
-        ${isCurrent ? 'shadow-lg shadow-amber-900/40' : ''}
-        ${flash ? 'scale-105 shadow-xl shadow-amber-500/50 border-amber-300' : ''}
+        ${isCurrent ? 'shadow-lg shadow-[#4A3000]/40' : ''}
+        ${flash ? 'scale-105 shadow-xl shadow-[#FFB900]/50 border-[#FFD060]' : ''}
         ${canViewVoicing ? 'cursor-pointer active:scale-95' : ''}`}>
       {showDegree && (
-        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Deg {degree}</span>
+        <span className="text-[10px] font-bold text-[#7A7A7A] uppercase tracking-wide">Deg {degree}</span>
       )}
       {showName ? (
-        <span className={`text-2xl font-bold leading-tight transition-colors duration-75 ${flash ? 'text-amber-200' : 'text-white'}`}>{chord.name}</span>
+        <span className={`text-2xl font-bold leading-tight transition-colors duration-75 ${flash ? 'text-[#FFD060]' : 'text-white'}`}>{chord.name}</span>
       ) : showDegree ? (
-        <span className={`text-2xl font-bold leading-tight transition-colors duration-75 ${flash ? 'text-white' : 'text-amber-400'}`}>{degree}</span>
+        <span className={`text-2xl font-bold leading-tight transition-colors duration-75 ${flash ? 'text-white' : 'text-[#FFB900]'}`}>{degree}</span>
       ) : (
-        <span className="text-2xl font-bold leading-tight text-gray-700">—</span>
+        <span className="text-2xl font-bold leading-tight text-[#606060]">—</span>
       )}
       {isCurrent && result === 'pending' && (
-        <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-amber-400 rounded-full animate-pulse"/>
+        <div className="absolute -top-1.5 -right-1.5 w-3 h-3 bg-[#FFC820] rounded-full animate-pulse"/>
       )}
-      {result === 'correct' && <span className="text-green-400 text-sm">✓</span>}
-      {result === 'incorrect' && <span className="text-red-400 text-sm">✗</span>}
+      {result === 'correct' && <span className="text-[#00B800] text-sm">✓</span>}
+      {result === 'incorrect' && <span className="text-[#FF4444] text-sm">✗</span>}
       {canViewVoicing && (
-        <span className="text-[9px] text-gray-600 mt-0.5">tap</span>
+        <span className="text-[9px] text-[#666666] mt-0.5">tap</span>
       )}
     </div>
   );
@@ -807,22 +805,22 @@ function VoicingPopup({ chord, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/80 flex items-end sm:items-center justify-center z-50"
       onClick={onClose}>
-      <div className="bg-gray-900 border border-gray-700 rounded-t-2xl sm:rounded-2xl p-5 w-full max-w-sm"
+      <div className="bg-[#3C3C3C] border border-[#666666] rounded-t-2xl sm:rounded-2xl p-5 w-full max-w-sm"
         onClick={e => e.stopPropagation()}>
         <div className="flex justify-between items-center mb-4">
           <h3 className="font-bold text-white text-lg">{chord.name} voicings</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-white text-xl leading-none">✕</button>
+          <button onClick={onClose} className="text-[#A3A3A3] hover:text-white text-xl leading-none">✕</button>
         </div>
         <div className="flex gap-4 justify-center flex-wrap">
           {voicings.map((v, i) => (
-            <div key={i} className="bg-gray-800 rounded-xl p-3 flex flex-col items-center gap-1">
-              <span className="text-xs text-gray-400 font-medium">{v.shape} shape</span>
+            <div key={i} className="bg-[#505050] rounded-xl p-3 flex flex-col items-center gap-1">
+              <span className="text-xs text-[#A3A3A3] font-medium">{v.shape} shape</span>
               <ChordVoicingDiagram voicing={v}/>
             </div>
           ))}
         </div>
         <button onClick={onClose}
-          className="mt-4 w-full py-2.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-xl text-sm font-medium transition-colors">
+          className="mt-4 w-full py-2.5 bg-[#505050] hover:bg-[#606060] text-[#D4D4D4] rounded-xl text-sm font-medium transition-colors">
           Close
         </button>
       </div>
@@ -842,9 +840,9 @@ function FrequencyVisualizer({ analyserRef }) {
       const buf = new Float32Array(analyser.fftSize);
       analyser.getFloatTimeDomainData(buf);
       ctx.clearRect(0, 0, canvas.width, canvas.height);
-      ctx.fillStyle = '#111827';
+      ctx.fillStyle = '#2C2C2C';
       ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.strokeStyle = '#f59e0b';
+      ctx.strokeStyle = '#FFB900';
       ctx.lineWidth = 1.5;
       ctx.beginPath();
       const step = canvas.width / buf.length;
@@ -859,28 +857,28 @@ function FrequencyVisualizer({ analyserRef }) {
     draw();
     return () => cancelAnimationFrame(raf);
   }, [analyserRef]);
-  return <canvas ref={canvasRef} width={240} height={48} className="rounded border border-gray-700 w-full max-w-xs"/>;
+  return <canvas ref={canvasRef} width={240} height={48} className="rounded border border-[#666666] w-full max-w-xs"/>;
 }
 
 function AudioDetector({ state, dispatch, analyserRef }) {
   const { micActive, manualMode, detectedNote, detectedFreq } = state;
   return (
-    <div className="bg-gray-900 border border-gray-700 rounded-xl p-4 space-y-3">
+    <div className="bg-[#3C3C3C] border border-[#666666] rounded-xl p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-300 flex items-center gap-1.5">
-          <Volume2 size={14} className="text-amber-400"/> Audio
+        <span className="text-sm font-medium text-[#D4D4D4] flex items-center gap-1.5">
+          <Volume2 size={14} className="text-[#FFB900]"/> Audio
         </span>
         <div className="flex items-center gap-2">
           {detectedNote && (
-            <span className="text-sm font-mono text-amber-300">{detectedNote}</span>
+            <span className="text-sm font-mono text-[#FFC840]">{detectedNote}</span>
           )}
-          <span className={`text-xs px-2 py-0.5 rounded ${micActive ? 'bg-green-900 text-green-300' : 'bg-gray-800 text-gray-500'}`}>
+          <span className={`text-xs px-2 py-0.5 rounded ${micActive ? 'bg-[#1A3A1A] text-[#00CC00]' : 'bg-[#505050] text-[#7A7A7A]'}`}>
             {micActive ? 'Listening' : 'Off'}
           </span>
         </div>
       </div>
       {manualMode && (
-        <p className="text-xs text-amber-400">Manual mode — mic unavailable</p>
+        <p className="text-xs text-[#FFB900]">Manual mode — mic unavailable</p>
       )}
       {micActive && analyserRef.current && (
         <FrequencyVisualizer analyserRef={analyserRef}/>
@@ -898,11 +896,11 @@ function ManualControls({ state, dispatch }) {
   return (
     <div className="flex gap-3 justify-center">
       <button onClick={() => dispatch({ type: 'CHORD_RESULT', index: currentChordIndex, result: 'correct' })}
-        className="flex items-center gap-1.5 px-5 py-2.5 bg-green-800 hover:bg-green-700 text-green-200 rounded-lg font-medium transition-colors">
+        className="flex items-center gap-1.5 px-5 py-2.5 bg-[#1A4A1A] hover:bg-[#005A00] text-[#66EE66] rounded-lg font-medium transition-colors">
         ✓ Got it
       </button>
       <button onClick={() => dispatch({ type: 'CHORD_RESULT', index: currentChordIndex, result: 'incorrect' })}
-        className="flex items-center gap-1.5 px-5 py-2.5 bg-red-900 hover:bg-red-800 text-red-200 rounded-lg font-medium transition-colors">
+        className="flex items-center gap-1.5 px-5 py-2.5 bg-[#3A1A1A] hover:bg-[#5A1A1A] text-[#FF9999] rounded-lg font-medium transition-colors">
         ✗ Missed
       </button>
     </div>
@@ -922,26 +920,26 @@ function RoundComplete({ state, dispatch, onEndSession }) {
   }, []);
 
   return (
-    <div className="bg-gray-900 border border-amber-700 rounded-xl p-6 text-center space-y-4">
-      <h3 className="text-xl font-bold text-amber-400">
+    <div className="bg-[#3C3C3C] border border-[#CC9900] rounded-xl p-6 text-center space-y-4">
+      <h3 className="text-xl font-bold text-[#FFB900]">
         Round {completedRounds}{autoRounds ? ` / ${autoRoundsTarget}` : ''} Complete!
       </h3>
       <div className="flex justify-center gap-8">
-        <div><div className="text-3xl font-bold text-white">{acc}%</div><div className="text-xs text-gray-500">Accuracy</div></div>
-        <div><div className="text-3xl font-bold text-white">{correctChords}/{totalChords}</div><div className="text-xs text-gray-500">Chords</div></div>
+        <div><div className="text-3xl font-bold text-white">{acc}%</div><div className="text-xs text-[#7A7A7A]">Accuracy</div></div>
+        <div><div className="text-3xl font-bold text-white">{correctChords}/{totalChords}</div><div className="text-xs text-[#7A7A7A]">Chords</div></div>
       </div>
       {autoHasMore && (
-        <p className="text-sm text-amber-400 animate-pulse">Next round starting…</p>
+        <p className="text-sm text-[#FFB900] animate-pulse">Next round starting…</p>
       )}
       <div className="flex gap-3 justify-center">
         {(!autoRounds || !autoHasMore) && (
           <button onClick={() => dispatch({ type: 'NEXT_ROUND' })}
-            className="flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold rounded-lg transition-colors">
+            className="flex items-center gap-1.5 px-5 py-2.5 bg-[#FFB900] hover:bg-[#FFC820] text-gray-950 font-bold rounded-lg transition-colors">
             <SkipForward size={16}/> Next Round
           </button>
         )}
         <button onClick={onEndSession}
-          className="flex items-center gap-1.5 px-5 py-2.5 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors">
+          className="flex items-center gap-1.5 px-5 py-2.5 bg-[#606060] hover:bg-[#6A6A6A] text-white rounded-lg transition-colors">
           <Square size={16}/> End Session
         </button>
       </div>
@@ -953,17 +951,17 @@ function EffectivenessModal({ onSave }) {
   const [rating, setRating] = useState(3);
   return (
     <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-      <div className="bg-gray-900 border border-gray-700 rounded-xl p-6 max-w-sm w-full space-y-4">
+      <div className="bg-[#3C3C3C] border border-[#666666] rounded-xl p-6 max-w-sm w-full space-y-4">
         <h3 className="text-lg font-bold text-white">Rate this session</h3>
         <div className="flex gap-2 justify-center">
           {[1,2,3,4,5].map(n => (
             <button key={n} onClick={() => setRating(n)}>
-              <Star size={28} fill={n <= rating ? '#f59e0b' : 'none'} className={n <= rating ? 'text-amber-400' : 'text-gray-600'}/>
+              <Star size={28} fill={n <= rating ? '#FFB900' : 'none'} className={n <= rating ? 'text-[#FFB900]' : 'text-[#666666]'}/>
             </button>
           ))}
         </div>
         <button onClick={() => onSave(rating)}
-          className="w-full bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold py-2.5 rounded-lg transition-colors">
+          className="w-full bg-[#FFB900] hover:bg-[#FFC820] text-gray-950 font-bold py-2.5 rounded-lg transition-colors">
           Save Session
         </button>
       </div>
@@ -994,10 +992,10 @@ function SummaryStats({ logbook }) {
         [Target, `${avgAcc}%`, 'Avg Accuracy'],
         [Flame, streak, 'Day Streak'],
       ].map(([Icon, val, label]) => (
-        <div key={label} className="bg-gray-900 border border-gray-700 rounded-xl p-3 text-center">
-          <Icon size={16} className="text-amber-400 mx-auto mb-1"/>
+        <div key={label} className="bg-[#3C3C3C] border border-[#666666] rounded-xl p-3 text-center">
+          <Icon size={16} className="text-[#FFB900] mx-auto mb-1"/>
           <div className="text-xl font-bold text-white">{val}</div>
-          <div className="text-xs text-gray-500">{label}</div>
+          <div className="text-xs text-[#7A7A7A]">{label}</div>
         </div>
       ))}
     </div>
@@ -1026,11 +1024,11 @@ function ProgressionsView({ state, dispatch }) {
         {['Major','Minor'].map(s => (
           <button key={s} onClick={() => { setActiveScale(s); setActiveGenre('All'); }}
             className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-colors
-              ${activeScale === s ? 'bg-amber-500 text-gray-950' : 'bg-gray-800 text-gray-400 hover:text-white'}`}>
+              ${activeScale === s ? 'bg-[#FFB900] text-gray-950' : 'bg-[#505050] text-[#A3A3A3] hover:text-white'}`}>
             {s}
           </button>
         ))}
-        <span className="ml-auto text-xs text-gray-500 self-center">Preview key: <span className="text-amber-400 font-mono">{previewKey}</span></span>
+        <span className="ml-auto text-xs text-[#7A7A7A] self-center">Preview key: <span className="text-[#FFB900] font-mono">{previewKey}</span></span>
       </div>
 
       {/* Genre filter */}
@@ -1038,7 +1036,7 @@ function ProgressionsView({ state, dispatch }) {
         {genres.map(g => (
           <button key={g} onClick={() => setActiveGenre(g)}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-colors
-              ${activeGenre === g ? 'bg-gray-600 text-white' : 'bg-gray-800 text-gray-500 hover:text-gray-300'}`}>
+              ${activeGenre === g ? 'bg-[#6A6A6A] text-white' : 'bg-[#505050] text-[#7A7A7A] hover:text-[#D4D4D4]'}`}>
             {g}
           </button>
         ))}
@@ -1047,29 +1045,29 @@ function ProgressionsView({ state, dispatch }) {
       {/* Progression cards */}
       {filtered.map(group => (
         <div key={group.genre} className="space-y-2">
-          <h3 className="text-xs font-bold text-amber-400 uppercase tracking-widest px-1">{group.genre}</h3>
+          <h3 className="text-xs font-bold text-[#FFB900] uppercase tracking-widest px-1">{group.genre}</h3>
           <div className="space-y-2">
             {group.items.map((prog, idx) => {
               const chordNames = prog.degrees.map(d => getChordAtDegree(previewKey, activeScale, d).name);
               const romans = prog.degrees.map(d => degLabel(d, activeScale));
               return (
-                <div key={idx} className="bg-gray-900 border border-gray-700 rounded-xl p-4 space-y-3">
+                <div key={idx} className="bg-[#3C3C3C] border border-[#666666] rounded-xl p-4 space-y-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-semibold text-white text-sm">{prog.name}</p>
-                      <p className="text-xs text-gray-500 mt-0.5 truncate">{prog.songs.join(' · ')}</p>
+                      <p className="text-xs text-[#7A7A7A] mt-0.5 truncate">{prog.songs.join(' · ')}</p>
                     </div>
                     <button
                       onClick={() => handlePractice(prog.degrees, activeScale)}
-                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold rounded-lg text-xs transition-colors">
+                      className="flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 bg-[#FFB900] hover:bg-[#FFC820] text-gray-950 font-bold rounded-lg text-xs transition-colors">
                       <Play size={11}/> Practice
                     </button>
                   </div>
                   {/* Chord pills */}
                   <div className="flex gap-1.5 flex-wrap">
                     {prog.degrees.map((d, i) => (
-                      <div key={i} className="flex flex-col items-center bg-gray-800 rounded-lg px-2.5 py-1.5 min-w-[36px]">
-                        <span className="text-[10px] text-gray-500 font-mono leading-tight">{romans[i]}</span>
+                      <div key={i} className="flex flex-col items-center bg-[#505050] rounded-lg px-2.5 py-1.5 min-w-[36px]">
+                        <span className="text-[10px] text-[#7A7A7A] font-mono leading-tight">{romans[i]}</span>
                         <span className="text-sm font-bold text-white leading-tight">{chordNames[i]}</span>
                       </div>
                     ))}
@@ -1096,9 +1094,9 @@ function LogbookView({ logbook, dispatch }) {
 
   if (logbook.length === 0) {
     return (
-      <div className="text-center py-16 text-gray-500">
-        <Guitar size={48} className="mx-auto mb-3 text-gray-700"/>
-        <p className="text-lg font-medium text-gray-400">No sessions yet</p>
+      <div className="text-center py-16 text-[#7A7A7A]">
+        <Guitar size={48} className="mx-auto mb-3 text-[#606060]"/>
+        <p className="text-lg font-medium text-[#A3A3A3]">No sessions yet</p>
         <p className="text-sm mt-1">Complete your first practice session to see it here.</p>
       </div>
     );
@@ -1109,14 +1107,14 @@ function LogbookView({ logbook, dispatch }) {
       <SummaryStats logbook={logbook}/>
       <div className="space-y-2">
         {logbook.map(entry => (
-          <div key={entry.id} className="bg-gray-900 border border-gray-700 rounded-xl p-4 flex items-center gap-4">
+          <div key={entry.id} className="bg-[#3C3C3C] border border-[#666666] rounded-xl p-4 flex items-center gap-4">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-bold text-white">{entry.sessionKey} {entry.sessionScale}</span>
-                <span className="text-xs bg-gray-800 text-gray-400 px-1.5 py-0.5 rounded">{entry.displayMode}</span>
-                {entry.tempoEnabled && <span className="text-xs text-amber-400">{entry.bpm} BPM</span>}
+                <span className="text-xs bg-[#505050] text-[#A3A3A3] px-1.5 py-0.5 rounded">{entry.displayMode}</span>
+                {entry.tempoEnabled && <span className="text-xs text-[#FFB900]">{entry.bpm} BPM</span>}
               </div>
-              <div className="flex items-center gap-3 mt-1 text-sm text-gray-400 flex-wrap">
+              <div className="flex items-center gap-3 mt-1 text-sm text-[#A3A3A3] flex-wrap">
                 <span>{entry.date?.slice(0,10)}</span>
                 <span>{Math.round(entry.durationMinutes)}m</span>
                 <span>{entry.accuracy}% acc</span>
@@ -1125,12 +1123,12 @@ function LogbookView({ logbook, dispatch }) {
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
               {Array.from({length:5}, (_,i) => (
-                <Star key={i} size={12} fill={i < entry.effectivenessRating ? '#f59e0b' : 'none'}
-                  className={i < entry.effectivenessRating ? 'text-amber-400' : 'text-gray-700'}/>
+                <Star key={i} size={12} fill={i < entry.effectivenessRating ? '#FFB900' : 'none'}
+                  className={i < entry.effectivenessRating ? 'text-[#FFB900]' : 'text-[#606060]'}/>
               ))}
             </div>
             <button onClick={() => handleDelete(entry.id)}
-              className="text-gray-600 hover:text-red-400 transition-colors flex-shrink-0">
+              className="text-[#666666] hover:text-[#FF4444] transition-colors flex-shrink-0">
               <Trash2 size={16}/>
             </button>
           </div>
@@ -1152,6 +1150,7 @@ export default function App() {
   const sourceRef = useRef(null);
   const detectionRafRef = useRef(null);
   const metronomeRef = useRef(null);
+  const metronomeAudibleRef = useRef(true);
   const nextClickTimeRef = useRef(0);
   const beatCountRef = useRef(0);
   const chordBeatCountRef = useRef(0);
@@ -1205,6 +1204,7 @@ export default function App() {
   const stateRef = useRef(state);
   stateRef.current = state;
   currentChordIndexRef.current = state.currentChordIndex;
+  metronomeAudibleRef.current = state.metronomeAudible;
 
   useEffect(() => {
     if (!state.micActive || state.roundState !== 'playing' || state.sessionPaused) {
@@ -1276,7 +1276,7 @@ export default function App() {
   // Metronome
   const scheduleClick = useCallback((time, isDownbeat) => {
     const ctx = audioCtxRef.current;
-    if (!ctx) return;
+    if (!ctx || !metronomeAudibleRef.current) return;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.connect(gain); gain.connect(ctx.destination);
@@ -1400,16 +1400,16 @@ export default function App() {
   const { sessionActive, sessionKey, sessionScale, chords, chordResults, revealedChords,
     currentChordIndex, roundState, displayMode, showVoicings, peekActive,
     tempoEnabled, beatsPerChord, currentBeat, countingIn, manualMode, view, storageError,
-    sessionPaused, pausedElapsed } = state;
+    sessionPaused, pausedElapsed, metronomeAudible } = state;
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="min-h-screen bg-[#1E1E1E] text-white">
       <Header view={view} dispatch={dispatch}/>
 
       {storageError && (
-        <div className="bg-red-900/50 border-b border-red-700 px-4 py-2 text-sm text-red-300 flex justify-between">
+        <div className="bg-[#3A1A1A]/50 border-b border-[#CC0000] px-4 py-2 text-sm text-[#FF7777] flex justify-between">
           <span>{storageError}</span>
-          <button onClick={() => dispatch({ type: 'SET_STORAGE_ERROR', msg: null })} className="text-red-400 hover:text-white">×</button>
+          <button onClick={() => dispatch({ type: 'SET_STORAGE_ERROR', msg: null })} className="text-[#FF4444] hover:text-white">×</button>
         </div>
       )}
 
@@ -1425,11 +1425,11 @@ export default function App() {
             ) : (
               <>
                 {/* Session header */}
-                <div className="flex items-center justify-between bg-gray-900 border border-gray-700 rounded-xl px-4 py-3 gap-3">
+                <div className="flex items-center justify-between bg-[#3C3C3C] border border-[#666666] rounded-xl px-4 py-3 gap-3">
                   <div className="flex items-center gap-3 min-w-0">
                     <div>
-                      <span className="font-bold text-xl text-amber-400">{sessionKey}</span>
-                      <span className="text-gray-400 ml-2">{sessionScale}</span>
+                      <span className="font-bold text-xl text-[#FFB900]">{sessionKey}</span>
+                      <span className="text-[#A3A3A3] ml-2">{sessionScale}</span>
                     </div>
                     {tempoEnabled && !sessionPaused && (
                       <BeatIndicator currentBeat={currentBeat} beatsPerChord={beatsPerChord} countingIn={countingIn}/>
@@ -1440,11 +1440,11 @@ export default function App() {
 
                 {/* Paused overlay */}
                 {sessionPaused && (
-                  <div className="bg-gray-900 border border-amber-700/50 rounded-xl p-8 text-center space-y-3">
-                    <Pause size={36} className="mx-auto text-amber-400"/>
+                  <div className="bg-[#3C3C3C] border border-[#CC9900]/50 rounded-xl p-8 text-center space-y-3">
+                    <Pause size={36} className="mx-auto text-[#FFB900]"/>
                     <p className="text-lg font-bold text-white">Session Paused</p>
                     <button onClick={() => dispatch({ type: 'RESUME_SESSION' })}
-                      className="flex items-center gap-2 mx-auto px-6 py-2.5 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold rounded-lg transition-colors">
+                      className="flex items-center gap-2 mx-auto px-6 py-2.5 bg-[#FFB900] hover:bg-[#FFC820] text-gray-950 font-bold rounded-lg transition-colors">
                       <Play size={16}/> Resume
                     </button>
                   </div>
@@ -1478,7 +1478,7 @@ export default function App() {
                       onMouseUp={() => dispatch({ type: 'SET_PEEK', value: false })}
                       onTouchStart={() => dispatch({ type: 'SET_PEEK', value: true })}
                       onTouchEnd={() => dispatch({ type: 'SET_PEEK', value: false })}
-                      className="flex items-center gap-1.5 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded-lg text-sm select-none">
+                      className="flex items-center gap-1.5 px-4 py-2 bg-[#505050] hover:bg-[#606060] text-[#D4D4D4] rounded-lg text-sm select-none">
                       <Eye size={14}/> Hold to Peek
                     </button>
                   </div>
@@ -1506,20 +1506,30 @@ export default function App() {
 
       {/* Fixed bottom session controls */}
       {sessionActive && roundState === 'playing' && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 bg-gray-950/95 backdrop-blur border-t border-gray-800 px-4 py-3 flex items-center justify-between gap-3">
-          {sessionPaused ? (
-            <button onClick={() => dispatch({ type: 'RESUME_SESSION' })}
-              className="flex items-center gap-2 px-4 py-2 bg-amber-500 hover:bg-amber-400 text-gray-950 font-bold rounded-lg text-sm transition-colors">
-              <Play size={15}/> Resume
+        <div className="fixed bottom-0 left-0 right-0 z-40 bg-[#1E1E1E]/95 backdrop-blur border-t border-[#555555] px-4 py-3 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            {sessionPaused ? (
+              <button onClick={() => dispatch({ type: 'RESUME_SESSION' })}
+                className="flex items-center gap-2 px-4 py-2 bg-[#FFB900] hover:bg-[#FFC820] text-gray-950 font-bold rounded-lg text-sm transition-colors">
+                <Play size={15}/> Resume
+              </button>
+            ) : (
+              <button onClick={() => dispatch({ type: 'PAUSE_SESSION' })}
+                className="flex items-center gap-2 px-4 py-2 bg-[#505050] hover:bg-[#606060] text-white rounded-lg text-sm transition-colors">
+                <Pause size={15}/> Pause
+              </button>
+            )}
+            <button onClick={() => dispatch({ type: 'TOGGLE_METRONOME' })}
+              title={metronomeAudible ? 'Mute metronome' : 'Unmute metronome'}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm transition-colors
+                ${metronomeAudible
+                  ? 'bg-[#505050] hover:bg-[#606060] text-[#A3A3A3]'
+                  : 'bg-[#3C3C3C] border border-[#CC9900] text-[#FFB900]'}`}>
+              {metronomeAudible ? <Volume2 size={15}/> : <VolumeX size={15}/>}
             </button>
-          ) : (
-            <button onClick={() => dispatch({ type: 'PAUSE_SESSION' })}
-              className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg text-sm transition-colors">
-              <Pause size={15}/> Pause
-            </button>
-          )}
+          </div>
           <button onClick={handleEndSession}
-            className="flex items-center gap-2 px-4 py-2 bg-red-900/80 hover:bg-red-800 text-red-200 rounded-lg text-sm font-medium transition-colors">
+            className="flex items-center gap-2 px-4 py-2 bg-[#3A1A1A]/80 hover:bg-[#5A1A1A] text-[#FF9999] rounded-lg text-sm font-medium transition-colors">
             <Square size={14}/> End Session
           </button>
         </div>
